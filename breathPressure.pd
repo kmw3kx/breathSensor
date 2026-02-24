@@ -1,0 +1,8 @@
+#N canvas 793 486 550 411 12;
+#X obj 146 117 adc~ 3;
+#X text 200 116 Bela A0;
+#X text 51 31 Bob Kammauff (kmw3kx) 2/24/26 Pressure Sensor Reads Pressure Sensor & Print it to the console;
+#X obj 207 201 s~ breath;
+#X obj 85 221 print~;
+#X connect 0 0 3 0;
+#X connect 0 0 4 0;
