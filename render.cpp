@@ -76,8 +76,8 @@ bool setup(BelaContext *context, void *userData)
         return false;
     }
 
-    i2cTask = Bela_createAuxiliaryTask(readMPR121, 50, "bela-mpr121");
-    encoderTask = Bela_createAuxiliaryTask(readEncoder, 50, "bela-encoder");
+    i2cTask = Bela_createAuxiliaryTask(readMPR121, 50, "bela-mpr121", context);
+    encoderTask = Bela_createAuxiliaryTask(readEncoder, 50, "bela-encoder", context);
     readIntervalSamples = context->audioSampleRate / readInterval;
     
     // Setup encoder
