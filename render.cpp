@@ -31,6 +31,8 @@ The sensor data will then be available for you to use in the array
 #include <Bela.h>
 #include <cmath>
 #include "I2C_MPR121.h"
+#include <libraries/Encoder/Encoder.h>
+#include <libraries/libpd/libpd.h>
 
 // How many pins there are
 #define NUM_TOUCH_PINS 12
@@ -38,7 +40,7 @@ The sensor data will then be available for you to use in the array
 // Define this to print data to terminal
 #undef DEBUG_MPR121
 
-// Change this to change how often the MPR121 is read (in Hz)
+// Change this to change how often the MPR121 & encoder is read (in Hz)
 int readInterval = 50;
 
 // Change this threshold to set the minimum amount of touch
@@ -47,78 +49,56 @@ int threshold = 40;
 // This array holds the continuous sensor values
 int sensorValue[NUM_TOUCH_PINS];
 
-// ---- test code stuff -- can be deleted for your example ----
-/* don't need this
-
-
-// 12 notes of a C major scale...
-float gFrequencies[NUM_TOUCH_PINS] = {261.63, 293.66, 329.63, 349.23, 392.00, 440.00, 493.88, 523.25, 587.33, 659.25, 698.25, 783.99};
-
-// This is internal stuff for the demo
-float gNormFrequencies[NUM_TOUCH_PINS];
-float gPhases[NUM_TOUCH_PINS] = {0};
-*/
+// Encoder setup
+Encoder gEncoder;
+unsigned int kEncChA = 0;
+unsigned int kEncChB = 1;
+unsigned int kEncChBtn = 2;
+unsigned int kDebouncingSamples = 15;
+Encoder::Polarity polarity = Encoder::ANY;
 
 // ---- internal stuff -- do not change -----
 
 I2C_MPR121 mpr121;			// Object to handle MPR121 sensing
 AuxiliaryTask i2cTask;		// Auxiliary task to read I2C
+AuxiliaryTask encoderTask;	// Auxiliary task to read encoder
 
 int readCount = 0;			// How long until we read again...
 int readIntervalSamples = 0; // How many samples between reads
 
 void readMPR121(void*);
+void readEncoder(void*);
 
 bool setup(BelaContext *context, void *userData)
 {
-	if(!mpr121.begin(1, 0x5A)) {
-		rt_printf("Error initialising MPR121\n");
-		return false;
-	}
+    if(!mpr121.begin(1, 0x5A)) {
+        rt_printf("Error initialising MPR121\n");
+        return false;
+    }
 
-	i2cTask = Bela_createAuxiliaryTask(readMPR121, 50, "bela-mpr121");
-	readIntervalSamples = context->audioSampleRate / readInterval;
-	setupEncoder();
+    i2cTask = Bela_createAuxiliaryTask(readMPR121, 50, "bela-mpr121");
+    encoderTask = Bela_createAuxiliaryTask(readEncoder, 50, "bela-encoder");
+    readIntervalSamples = context->audioSampleRate / readInterval;
+    
+    // Setup encoder
+    gEncoder.setup(kDebouncingSamples, polarity);
+    pinMode(context, 0, kEncChA, INPUT);
+    pinMode(context, 0, kEncChB, INPUT);
+    pinMode(context, 0, kEncChBtn, INPUT);
 
-	/*
-	for(int i = 0; i < NUM_TOUCH_PINS; i++) {
-		gNormFrequencies[i] = 2.0 * M_PI * gFrequencies[i] / context->audioSampleRate;
-	}
-	*/
-	return true;
+    return true;
 }
 
 void render(BelaContext *context, void *userData)
 {
-	for(unsigned int n = 0; n < context->audioFrames; n++) {
-		// Keep this code: it schedules the touch sensor readings
-		if(++readCount >= readIntervalSamples) {
-			readCount = 0;
-			Bela_scheduleAuxiliaryTask(i2cTask);
-			Bela_scheduleAuxiliaryTask(readEncoder);
-		}
-		/*
-
-		float sample = 0.0;
-
-		// This code can be replaced with your favourite audio code
-		for(int i = 0; i < NUM_TOUCH_PINS; i++) {
-			float amplitude = sensorValue[i] / 400.f;
-
-			// Prevent clipping
-			if(amplitude > 0.5)
-				amplitude = 0.5;
-
-			sample += amplitude * sinf(gPhases[i]);
-			gPhases[i] += gNormFrequencies[i];
-			if(gPhases[i] > M_PI)
-				gPhases[i] -= 2.0f * (float)M_PI;
-		}
-
-		for(unsigned int ch = 0; ch < context->audioInChannels; ch++)
-			context->audioOut[context->audioInChannels * n + ch] = sample;
-		*/
-	}
+    for(unsigned int n = 0; n < context->audioFrames; n++) {
+        // Schedule tasks at regular intervals
+        if(++readCount >= readIntervalSamples) {
+            readCount = 0;
+            Bela_scheduleAuxiliaryTask(i2cTask);
+            Bela_scheduleAuxiliaryTask(encoderTask);
+        }
+    }
 }
 
 void cleanup(BelaContext *context, void *userData)
@@ -127,20 +107,30 @@ void cleanup(BelaContext *context, void *userData)
 // Auxiliary task to read the I2C board
 void readMPR121(void*)
 {
-	for(int i = 0; i < NUM_TOUCH_PINS; i++) {
-		sensorValue[i] = -(mpr121.filteredData(i) - mpr121.baselineData(i));
-		sensorValue[i] -= threshold;
-		if(sensorValue[i] < 0)
-			sensorValue[i] = 0;
-		libpd_float("mpr121", mpr121.touched());
+    for(int i = 0; i < NUM_TOUCH_PINS; i++) {
+        sensorValue[i] = -(mpr121.filteredData(i) - mpr121.baselineData(i));
+        sensorValue[i] -= threshold;
+        if(sensorValue[i] < 0)
+            sensorValue[i] = 0;
 #ifdef DEBUG_MPR121
-		rt_printf("%d ", sensorValue[i]);
+        rt_printf("%d ", sensorValue[i]);
 #endif
-	}
+    }
 #ifdef DEBUG_MPR121
-	rt_printf("\n");
+    rt_printf("\n");
 #endif
+    libpd_float("mpr121", mpr121.touched());
+}
 
-	// You can use this to read binary on/off touch state more easily
-	//rt_printf("Touched: %x\n", mpr121.touched());
+// Auxiliary task to read the encoder
+void readEncoder(void*)
+{
+    bool a = digitalRead(context, 0, kEncChA);
+    bool b = digitalRead(context, 0, kEncChB);
+    Encoder::Rotation rot = gEncoder.process(a, b);
+    
+    if(Encoder::NONE != rot) {
+        int position = gEncoder.get();
+        libpd_float("encoder_pos", (float)position);
+    }
 }
