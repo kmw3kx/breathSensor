@@ -36,10 +36,10 @@ unsigned int kEncChBtn = 2;
 unsigned int kDebouncingSamples = 15;
 Encoder::Polarity polarity = Encoder::ANY; // could be ANY, ACTIVE_LOW, ACTIVE_HIGH
 
-
-bool setup(BelaContext *context, void *userData)
+// MODIFICATION: turning the setup & render functions into abstractions to be included in the main code
+bool setupEncoder()
 {
-	gScope.setup(3, context->audioSampleRate);
+	//gScope.setup(3, context->audioSampleRate); //Commented out since this will be included in the parent render.cpp
 	gEncoder.setup(kDebouncingSamples, polarity);
 
 	// Set the digital pins to inputs
@@ -51,37 +51,40 @@ bool setup(BelaContext *context, void *userData)
 bool gButton;
 unsigned int holdoff;
 
-void render(BelaContext *context, void *userData)
+// Auxiliary task to read the Encoder
+void readEncoder()
 {
-	for(unsigned int n=0; n<context->digitalFrames; n++){
-		bool a = digitalRead(context, n, kEncChA);
-		bool b = digitalRead(context, n, kEncChB);
-		bool button = digitalRead(context, n, kEncChBtn);
-		Encoder::Rotation ret = gEncoder.process(a, b);
-		if(Encoder::NONE != ret)
-		{
-			rt_printf("%s : %3d\n", Encoder::CCW == ret ? "ccw" : "cw ", gEncoder.get());
+	//for(unsigned int n=0; n<context->digitalFrames; n++){
+	
+	bool a = digitalRead(context, n, kEncChA);
+	bool b = digitalRead(context, n, kEncChB);
+	bool button = digitalRead(context, n, kEncChBtn);
+	Encoder::Rotation ret = gEncoder.process(a, b);
+	if(Encoder::NONE != ret)
+	{
+		rt_printf("%s : %3d\n", Encoder::CCW == ret ? "ccw" : "cw ", gEncoder.get());
+	}
+	if(gButton != button) {
+		gButton = button;
+		if(button) {
+			gEncoder.reset();
+			rt_printf("reset : %3d\n", gEncoder.get());
 		}
-		if(gButton != button) {
-			gButton = button;
-			if(button) {
-				gEncoder.reset();
-				rt_printf("reset : %3d\n", gEncoder.get());
-			}
+	//}
+	if(1)
+	{
+		if(Encoder::CCW == ret)
+			button = 1;
+		else
+			button = 0;
 		}
-		if(1)
-		{
-			if(Encoder::CCW == ret)
-				button = 1;
-			else
-				button = 0;
-
-		}
-		gScope.log( // log the values with a vertical offset to make them easier to see
-			a * 0.5 + 0.333,
+	/*
+	gScope.log( // log the values with a vertical offset to make them easier to see
+		a * 0.5 + 0.333,
 			b * 0.5 - 0.333,
 			button * 0.5 - 0.88
 		);
+	*/
 	}
 }
 

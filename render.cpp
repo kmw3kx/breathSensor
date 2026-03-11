@@ -7,6 +7,11 @@
 http://bela.io
 */
 /**
+ * 
+ * Bob Kammauff (kmw3kx)
+ * 3/11/26
+ * Parent render.ccp file to send data to (hopefully soon from) puredata
+ * Built off of:
 \example Sensors/MPR121/render.cpp
 
 Capacitive touch sensing with MPR121
@@ -43,7 +48,7 @@ int threshold = 40;
 int sensorValue[NUM_TOUCH_PINS];
 
 // ---- test code stuff -- can be deleted for your example ----
-/*
+/* don't need this
 
 
 // 12 notes of a C major scale...
@@ -53,6 +58,7 @@ float gFrequencies[NUM_TOUCH_PINS] = {261.63, 293.66, 329.63, 349.23, 392.00, 44
 float gNormFrequencies[NUM_TOUCH_PINS];
 float gPhases[NUM_TOUCH_PINS] = {0};
 */
+
 // ---- internal stuff -- do not change -----
 
 I2C_MPR121 mpr121;			// Object to handle MPR121 sensing
@@ -72,6 +78,8 @@ bool setup(BelaContext *context, void *userData)
 
 	i2cTask = Bela_createAuxiliaryTask(readMPR121, 50, "bela-mpr121");
 	readIntervalSamples = context->audioSampleRate / readInterval;
+	setupEncoder();
+
 	/*
 	for(int i = 0; i < NUM_TOUCH_PINS; i++) {
 		gNormFrequencies[i] = 2.0 * M_PI * gFrequencies[i] / context->audioSampleRate;
@@ -87,6 +95,7 @@ void render(BelaContext *context, void *userData)
 		if(++readCount >= readIntervalSamples) {
 			readCount = 0;
 			Bela_scheduleAuxiliaryTask(i2cTask);
+			Bela_scheduleAuxiliaryTask(readEncoder);
 		}
 		/*
 
