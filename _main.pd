@@ -20,6 +20,7 @@
 #X obj 313 209 tgl 19 0 empty empty empty 0 -10 0 12 #fcfcfc #000000 #000000 0 1;
 #X obj 239 246 *~;
 #X obj 226 329 MPR121;
+#X obj 363 335 Encoder;
 #X connect 1 0 2 0;
 #X connect 2 0 5 0;
 #X connect 3 0 4 0;

@@ -76,8 +76,13 @@ bool setup(BelaContext *context, void *userData)
         return false;
     }
 
-    i2cTask = Bela_createAuxiliaryTask(readMPR121, 50, "bela-mpr121", context);
-    encoderTask = Bela_createAuxiliaryTask(readEncoder, 50, "bela-encoder", context);
+    libpd_init();
+    libpd_init_audio(context->audioInChannels, context->audioOutChannels, context->audioSampleRate);
+    libpd_openfile("_main.pd", ".");
+    // now safe to use libpd_float()
+    
+    i2cTask = Bela_createAuxiliaryTask(readMPR121, 50, "bela-mpr121");
+    //encoderTask = Bela_createAuxiliaryTask(readEncoder, 50, "bela-encoder", context);
     readIntervalSamples = context->audioSampleRate / readInterval;
     
     // Setup encoder
@@ -96,7 +101,15 @@ void render(BelaContext *context, void *userData)
         if(++readCount >= readIntervalSamples) {
             readCount = 0;
             Bela_scheduleAuxiliaryTask(i2cTask);
-            Bela_scheduleAuxiliaryTask(encoderTask);
+        }
+        // Read encoder
+        bool a = digitalRead(context, n, kEncChA);
+        bool b = digitalRead(context, n, kEncChB);
+        Encoder::Rotation rot = gEncoder.process(a, b);
+        
+        if(Encoder::NONE != rot) {
+            int position = gEncoder.get();
+            libpd_float("encoder_pos", (float)position);
         }
     }
 }
@@ -123,8 +136,10 @@ void readMPR121(void*)
 }
 
 // Auxiliary task to read the encoder
-void readEncoder(void*)
+/*
+void readEncoder(void* arg)
 {
+    BelaContext* context = (BelaContext*)arg;
     bool a = digitalRead(context, 0, kEncChA);
     bool b = digitalRead(context, 0, kEncChB);
     Encoder::Rotation rot = gEncoder.process(a, b);
@@ -134,3 +149,4 @@ void readEncoder(void*)
         libpd_float("encoder_pos", (float)position);
     }
 }
+*/

@@ -1,0 +1,4 @@
+#N canvas 875 352 450 300 12;
+#X obj 147 93 r encoder_pos;
+#X obj 147 117 print encoder;
+#X connect 0 0 1 0;
