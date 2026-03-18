@@ -2,12 +2,14 @@
 
 This is my repository for my breath controller that I am working on this semester (and hopefully beyond)
 
-List of parts:
--Breadboard
--Bela board
--Encoder
--MPR121 Capacitive Touch Board
--SSD1306 mono OLED display
--‎MP3V5004GP-ND‎ Breath Pressure Sensor 
--1/8" Audio Out Jack
--Hardware (Nuts & Bolts)
+Submit on Canvas:
+Your _main.pd patch and any other Pd patches needed to make your instrument work.
+A photo of your Bela and breadboard circuit
+A short text file or pdf document describing:
+What the instrument does, how it works.
+Anything interesting you did or learned while making the instrument
+
+## Work Log
+
+### 3/17/26
+I am submitting this README as my text file for the `Exercise 3 - Two-Button++ Bela Instrument` assignment. My instrument is a prototype of an EVI that I hope to make into my final project. It takes readings from a pressure sensor, a MPR121 Capacitive Touch board, and a rotary encoder and lets you play it like you would play a trumpet. The sound is just a simple sine wave (& saw wave when suctioned), but it demonstrates
