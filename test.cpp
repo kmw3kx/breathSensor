@@ -1,3 +1,6 @@
+
+// Im worried it will break if i change the name, but this is what i want to call Bobs_init.cpp
+
 #ifdef MY_SENSORS
 // //MODIFICATION: include the relevant libraries for your sensors here.
 #include "I2C_MPR121.h" // for capacitive touch sensor

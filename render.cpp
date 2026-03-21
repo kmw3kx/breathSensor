@@ -57,6 +57,7 @@
 #include <vector>
 
 #define MY_SENSORS // undefine this to disable the code related to the sensors, which is marked by `#ifdef MY_SENSORS` and `#endif // MY_SENSORS`
+
 #include "test.cpp"
 
 
@@ -874,21 +875,9 @@ bool setup(BelaContext *context, void *userData)
 	gTrillTask = Bela_createAuxiliaryTask(readTouchSensors, 51, "touchSensorRead", NULL);
 	gTrillPipe.setup("trillPipe", 1024);
 #endif // BELA_LIBPD_TRILL
-#ifdef MY_SENSORS // // MODIFICATION: add requisite setup code here
-	if(!mpr121.begin(1, 0x5A)) 
-	{
-        rt_printf("Error initialising MPR121\n");
-        return false;
-    }
-	i2cTask = Bela_createAuxiliaryTask(readMPR121, 50, "bela-mpr121");
-    
-    readIntervalSamples = context->audioSampleRate / readInterval;
-    
-    // Setup encoder
-    gEncoder.setup(kDebouncingSamples, polarity);
-    pinMode(context, 0, kEncChA, INPUT);
-    pinMode(context, 0, kEncChB, INPUT);
-    pinMode(context, 0, kEncChBtn, INPUT);
+
+#ifdef MY_SENSORS
+#include "Bobs_setup.cpp"
 #endif // MY_SENSORS
 	return true;
 }
@@ -1242,22 +1231,7 @@ void render(BelaContext *context, void *userData)
 		}
 	}
 #ifdef MY_SENSORS
-	for(unsigned int n = 0; n < context->audioFrames; n++) {
-        // Schedule tasks at regular intervals
-        if(++readCount >= readIntervalSamples) {
-            readCount = 0;
-            Bela_scheduleAuxiliaryTask(i2cTask);
-        }
-        // Read encoder
-        bool a = digitalRead(context, n, kEncChA);
-        bool b = digitalRead(context, n, kEncChB);
-        Encoder::Rotation rot = gEncoder.process(a, b);
-        
-        if(Encoder::NONE != rot) {
-            int position = gEncoder.get();
-            libpd_float("encoder_pos", (float)position); //Send to Pd
-        }
-    }
+#include "Bobs_render.cpp"
 #endif // MY_SENSORS
 }
 
@@ -1282,22 +1256,6 @@ void cleanup(BelaContext *context, void *userData)
 #endif // BELA_LIBPD_SCOPE
 }
 
-// Auxiliary task to read the I2C board
 #ifdef MY_SENSORS
-void readMPR121(void*)
-{
-    for(int i = 0; i < NUM_TOUCH_PINS; i++) {
-        sensorValue[i] = -(mpr121.filteredData(i) - mpr121.baselineData(i));
-        sensorValue[i] -= threshold;
-        if(sensorValue[i] < 0)
-            sensorValue[i] = 0;
-#ifdef DEBUG_MPR121
-        rt_printf("%d ", sensorValue[i]);
-#endif
-    }
-#ifdef DEBUG_MPR121
-    rt_printf("\n");
-#endif
-    libpd_float("mpr121", mpr121.touched());
-}
+#include "Bobs_AuxTask.cpp"
 #endif // MY_SENSORS
