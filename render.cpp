@@ -1,5 +1,5 @@
 // Custom libpd render.cpp to use with Whatever sensors you'd like.
-// The modifications (marked by `#ifdef BELA_PD_CONTROL`) have been taken from the example Sensors/ultrasonic-distance and
+// The modifications (marked by `#ifdef MY_SENSORS`) have been taken from the example Sensors/ultrasonic-distance and
 // applied on top of
 // https://github.com/BelaPlatform/Bela/blob/970163ea2a1c69b364ce4c4e3b1b92c3a3fceb17/core/default_libpd_render.cpp
 // Place this file in a Bela project alongside a `_main.pd` which contains:
@@ -7,7 +7,7 @@
 // |
 // [print]
 //
-// Pins in use are set below. Comment out `#define BELA_PD_CONTROL_DIGITAL_OUT` to use an analog out instead.
+// Pins in use are set below. Comment out `#define MY_SENSORS_DIGITAL_OUT` to use an analog out instead.
 //
 // To connect more than one sensor, modify the C++ code as follows:
 // - change kNumSensors
@@ -56,10 +56,10 @@
 #include <string.h>
 #include <vector>
 
-#include "belaPdControl.h" // include the header file 
-#ifdef BELA_PD_CONTROL
-	// don't think we need anything in here; already initialized by including belaPdControl.h
-#endif // BELA_PD_CONTROL 
+#define MY_SENSORS // undefine this to disable the code related to the sensors, which is marked by `#ifdef MY_SENSORS` and `#endif // MY_SENSORS`
+#include "test.cpp"
+
+
 
 #if (defined(BELA_LIBPD_GUI) || defined(BELA_LIBPD_TRILL))
 #include <libraries/Pipe/Pipe.h>
@@ -874,9 +874,22 @@ bool setup(BelaContext *context, void *userData)
 	gTrillTask = Bela_createAuxiliaryTask(readTouchSensors, 51, "touchSensorRead", NULL);
 	gTrillPipe.setup("trillPipe", 1024);
 #endif // BELA_LIBPD_TRILL
-#ifdef BELA_PD_CONTROL
-	belaPdControlSetup(); //This is our in to the setup() function.
-#endif // BELA_PD_CONTROL
+#ifdef MY_SENSORS // // MODIFICATION: add requisite setup code here
+	if(!mpr121.begin(1, 0x5A)) 
+	{
+        rt_printf("Error initialising MPR121\n");
+        return false;
+    }
+	i2cTask = Bela_createAuxiliaryTask(readMPR121, 50, "bela-mpr121");
+    
+    readIntervalSamples = context->audioSampleRate / readInterval;
+    
+    // Setup encoder
+    gEncoder.setup(kDebouncingSamples, polarity);
+    pinMode(context, 0, kEncChA, INPUT);
+    pinMode(context, 0, kEncChB, INPUT);
+    pinMode(context, 0, kEncChBtn, INPUT);
+#endif // MY_SENSORS
 	return true;
 }
 
@@ -1228,9 +1241,24 @@ void render(BelaContext *context, void *userData)
 			);
 		}
 	}
-#ifdef BELA_PD_CONTROL
-	belaPdControlRender(); //This is our in to the render function.
-#endif // BELA_PD_CONTROL
+#ifdef MY_SENSORS
+	for(unsigned int n = 0; n < context->audioFrames; n++) {
+        // Schedule tasks at regular intervals
+        if(++readCount >= readIntervalSamples) {
+            readCount = 0;
+            Bela_scheduleAuxiliaryTask(i2cTask);
+        }
+        // Read encoder
+        bool a = digitalRead(context, n, kEncChA);
+        bool b = digitalRead(context, n, kEncChB);
+        Encoder::Rotation rot = gEncoder.process(a, b);
+        
+        if(Encoder::NONE != rot) {
+            int position = gEncoder.get();
+            libpd_float("encoder_pos", (float)position); //Send to Pd
+        }
+    }
+#endif // MY_SENSORS
 }
 
 void cleanup(BelaContext *context, void *userData)
@@ -1254,3 +1282,22 @@ void cleanup(BelaContext *context, void *userData)
 #endif // BELA_LIBPD_SCOPE
 }
 
+// Auxiliary task to read the I2C board
+#ifdef MY_SENSORS
+void readMPR121(void*)
+{
+    for(int i = 0; i < NUM_TOUCH_PINS; i++) {
+        sensorValue[i] = -(mpr121.filteredData(i) - mpr121.baselineData(i));
+        sensorValue[i] -= threshold;
+        if(sensorValue[i] < 0)
+            sensorValue[i] = 0;
+#ifdef DEBUG_MPR121
+        rt_printf("%d ", sensorValue[i]);
+#endif
+    }
+#ifdef DEBUG_MPR121
+    rt_printf("\n");
+#endif
+    libpd_float("mpr121", mpr121.touched());
+}
+#endif // MY_SENSORS
